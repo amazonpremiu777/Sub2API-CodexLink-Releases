@@ -2,6 +2,8 @@ name: Publish release
 
 on:
   push:
+    branches:
+      - main
     tags:
       - "v*"
 
@@ -14,21 +16,39 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Select release version
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            version="${GITHUB_REF_NAME}"
+          else
+            version="$(find release-assets -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort -V | tail -n 1)"
+          fi
+          test -n "${version}"
+          echo "VERSION=${version}" >> "${GITHUB_ENV}"
+
       - name: Verify SHA256
         shell: bash
         run: |
-          cd "release-assets/${GITHUB_REF_NAME}"
-          expected="$(tr -d '\r\n ' < "Sub2API-CodexLink-${GITHUB_REF_NAME}.exe.sha256")"
-          echo "${expected}  Sub2API-CodexLink-${GITHUB_REF_NAME}.exe" | sha256sum --check --strict
+          cd "release-assets/${VERSION}"
+          expected="$(tr -d '\r\n ' < "Sub2API-CodexLink-${VERSION}.exe.sha256")"
+          echo "${expected}  Sub2API-CodexLink-${VERSION}.exe" | sha256sum --check --strict
 
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          folder="release-assets/${GITHUB_REF_NAME}"
-          gh release create "${GITHUB_REF_NAME}" \
-            --title "Sub2API CodexLink ${GITHUB_REF_NAME}" \
-            --notes-file "${folder}/RELEASE_NOTES.md" \
-            "${folder}/Sub2API-CodexLink-${GITHUB_REF_NAME}.exe" \
-            "${folder}/Sub2API-CodexLink-${GITHUB_REF_NAME}.exe.sha256"
+          folder="release-assets/${VERSION}"
+          if gh release view "${VERSION}" >/dev/null 2>&1; then
+            gh release upload "${VERSION}" \
+              "${folder}/Sub2API-CodexLink-${VERSION}.exe" \
+              "${folder}/Sub2API-CodexLink-${VERSION}.exe.sha256" \
+              --clobber
+          else
+            gh release create "${VERSION}" \
+              --title "Sub2API CodexLink ${VERSION}" \
+              --notes-file "${folder}/RELEASE_NOTES.md" \
+              "${folder}/Sub2API-CodexLink-${VERSION}.exe" \
+              "${folder}/Sub2API-CodexLink-${VERSION}.exe.sha256"
+          fi
