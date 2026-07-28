@@ -52,3 +52,15 @@ jobs:
               "${folder}/Sub2API-CodexLink-${VERSION}.exe" \
               "${folder}/Sub2API-CodexLink-${VERSION}.exe.sha256"
           fi
+
+      - name: Remove older releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh release list --limit 100 --json tagName --jq '.[].tagName' |
+            while IFS= read -r tag; do
+              if [[ -n "${tag}" && "${tag}" != "${VERSION}" ]]; then
+                gh release delete "${tag}" --cleanup-tag --yes
+              fi
+            done
